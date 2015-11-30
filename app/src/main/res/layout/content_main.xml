@@ -47,4 +47,13 @@
         android:textSize="16sp"
         android:layout_marginTop="30dp"/>
 
+    <Button
+        android:id="@+id/btn_login_twitter"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Log in with Twitter"
+        android:layout_below="@+id/btn_login_instagram"
+        android:textSize="16sp"
+        android:layout_marginTop="30dp"/>
+
 </RelativeLayout>

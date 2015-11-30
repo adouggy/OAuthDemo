@@ -26,10 +26,21 @@
             android:theme="@style/AppTheme.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
+
             </intent-filter>
         </activity>
+
+        <activity android:name="com.github.adouggy.android.oauth.activity.TwitterActivity"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="oauth" android:host="com.hintdesk.Twitter_oAuth"  />
+            </intent-filter>
+        </activity>
+
     </application>
 
 </manifest>

@@ -2,8 +2,12 @@ package com.github.adouggy.android.oauth.activity;
 
 import android.app.Dialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
@@ -27,18 +31,22 @@ import com.facebook.login.LoginManager;
 import com.facebook.login.LoginResult;
 import com.facebook.login.widget.LoginButton;
 import com.github.adouggy.android.oauth.R;
+import com.github.adouggy.android.oauth.util.ConstantValues;
 import com.github.adouggy.android.oauth.util.PackageHashUtil;
+import com.github.adouggy.android.oauth.util.TwitterUtil;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
 import java.util.Arrays;
 import java.util.List;
+
+import twitter4j.auth.RequestToken;
 
 public class MainActivity extends AppCompatActivity {
 
     private final static String TAG = "MainActivity";
 
     private CallbackManager callbackManager;
+
+    public static String CALLBACK_URL="myapp://twitter";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -97,25 +105,21 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        //for instagram
         final String OAUTH_URL = "https://api.instagram.com/oauth/authorize";
-        String REDIRECT_URI = null;
-        try {
-            REDIRECT_URI = URLEncoder.encode("http://115.28.235.57/oauth/callback?type=instagram", "utf-8");
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-        }
-        final String uri = REDIRECT_URI;
+        String REDIRECT_URI = "http://115.28.235.57/oauth/callback?type=";
+        final String uri = REDIRECT_URI + "instagram";
         Button btnLoginInstagram = (Button) findViewById(R.id.btn_login_instagram);
-        btnLoginInstagram.setOnClickListener(new View.OnClickListener(){
+        btnLoginInstagram.setOnClickListener(new View.OnClickListener() {
             Dialog auth_dialog;
 
             @Override
             public void onClick(View v) {
                 auth_dialog = new Dialog(MainActivity.this);
                 auth_dialog.setContentView(R.layout.auth_dialog);
-                WebView web = (WebView)auth_dialog.findViewById(R.id.webv);
+                WebView web = (WebView) auth_dialog.findViewById(R.id.webv);
                 web.getSettings().setJavaScriptEnabled(true);
-                String oauthUrl = OAUTH_URL+"?redirect_uri="+uri+"&response_type=code&client_id=4acf266c82374ba38fe29c2c45121107"+"&scope=basic";
+                String oauthUrl = OAUTH_URL + "?redirect_uri=" + uri + "&response_type=code&client_id=4acf266c82374ba38fe29c2c45121107" + "&scope=basic";
                 Log.i(TAG, "instagram oauthUrl:" + oauthUrl);
                 web.loadUrl(oauthUrl);
                 web.setWebViewClient(new WebViewClient() {
@@ -123,10 +127,12 @@ public class MainActivity extends AppCompatActivity {
                     Intent resultIntent = new Intent();
 
                     @Override
-                    public void onPageStarted(WebView view, String url, Bitmap favicon){
+                    public void onPageStarted(WebView view, String url, Bitmap favicon) {
                         super.onPageStarted(view, url, favicon);
                     }
+
                     String authCode;
+
                     @Override
                     public void onPageFinished(WebView view, String url) {
                         super.onPageFinished(view, url);
@@ -139,6 +145,38 @@ public class MainActivity extends AppCompatActivity {
                 auth_dialog.setCancelable(true);
             }
         });
+
+        Button btnLoginTwitter = (Button) findViewById(R.id.btn_login_twitter);
+        btnLoginTwitter.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+                if (!sharedPreferences.getBoolean(ConstantValues.PREFERENCE_TWITTER_IS_LOGGED_IN,false))
+                {
+                    new TwitterAuthenticateTask().execute();
+                }
+                else
+                {
+                    Intent intent = new Intent(MainActivity.this, TwitterActivity.class);
+                    startActivity(intent);
+                }
+            }
+        });
+
+    }
+
+    class TwitterAuthenticateTask extends AsyncTask<String, String, RequestToken> {
+
+        @Override
+        protected void onPostExecute(RequestToken requestToken) {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(requestToken.getAuthenticationURL()));
+            startActivity(intent);
+        }
+
+        @Override
+        protected RequestToken doInBackground(String... params) {
+            return TwitterUtil.getInstance().getRequestToken();
+        }
     }
 
     @Override
@@ -163,12 +201,14 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
 
+
+
+    public void onResume(){
+        super.onResume();
         AppEventsLogger.activateApp(this);
     }
+
 
     @Override
     protected void onPause() {
@@ -182,4 +222,6 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
         callbackManager.onActivityResult(requestCode, resultCode, data);
     }
+
+
 }
