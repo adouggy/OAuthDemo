@@ -1,6 +1,7 @@
 package com.github.adouggy.android.oauth.activity;
 
 import android.app.Dialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
@@ -19,8 +20,15 @@ import android.view.View;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.Volley;
 import com.facebook.AccessToken;
 import com.facebook.CallbackManager;
 import com.facebook.FacebookCallback;
@@ -32,7 +40,9 @@ import com.facebook.login.LoginResult;
 import com.facebook.login.widget.LoginButton;
 import com.github.adouggy.android.oauth.R;
 import com.github.adouggy.android.oauth.util.ConstantValues;
+import com.github.adouggy.android.oauth.util.OAuthType;
 import com.github.adouggy.android.oauth.util.PackageHashUtil;
+import com.github.adouggy.android.oauth.util.SimpleJsonUtil;
 import com.github.adouggy.android.oauth.util.TwitterUtil;
 
 import java.util.Arrays;
@@ -46,15 +56,21 @@ public class MainActivity extends AppCompatActivity {
 
     private CallbackManager callbackManager;
 
-    public static String CALLBACK_URL="myapp://twitter";
+    public static String CALLBACK_URL = "myapp://twitter";
+
+    public static TextView mTokenTextView = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         FacebookSdk.sdkInitialize(getApplicationContext());
+        Log.i(TAG, "package hash:" + PackageHashUtil.getHash(this));
+
         callbackManager = CallbackManager.Factory.create();
         List<String> permissionNeeds = Arrays.asList("user_photos", "email", "user_birthday", "public_profile");
         setContentView(R.layout.activity_main);
+
+        mTokenTextView = (TextView) findViewById(R.id.tv_token);
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -78,6 +94,8 @@ public class MainActivity extends AppCompatActivity {
                         String tokenStr = token.getToken();
 
                         Log.i(TAG, "token:" + tokenStr + ",expires:" + token.getExpires() + ",last refersh:" + token.getLastRefresh());
+
+                        loginApi(OAuthType.facebook.name(), tokenStr);
                     }
 
                     @Override
@@ -106,9 +124,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         //for instagram
-        final String OAUTH_URL = "https://api.instagram.com/oauth/authorize";
-        String REDIRECT_URI = "http://115.28.235.57/oauth/callback?type=";
-        final String uri = REDIRECT_URI + "instagram";
         Button btnLoginInstagram = (Button) findViewById(R.id.btn_login_instagram);
         btnLoginInstagram.setOnClickListener(new View.OnClickListener() {
             Dialog auth_dialog;
@@ -117,11 +132,12 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 auth_dialog = new Dialog(MainActivity.this);
                 auth_dialog.setContentView(R.layout.auth_dialog);
-                WebView web = (WebView) auth_dialog.findViewById(R.id.webv);
+                final WebView web = (WebView) auth_dialog.findViewById(R.id.webv);
                 web.getSettings().setJavaScriptEnabled(true);
-                String oauthUrl = OAUTH_URL + "?redirect_uri=" + uri + "&response_type=code&client_id=4acf266c82374ba38fe29c2c45121107" + "&scope=basic";
-                Log.i(TAG, "instagram oauthUrl:" + oauthUrl);
-                web.loadUrl(oauthUrl);
+                web.addJavascriptInterface(new MyJavaScriptInterface(MainActivity.this), "HtmlViewer");
+
+                Log.i(TAG, "instagram oauthUrl:" + ConstantValues.INSTAGRAM_OAUTH_URL);
+                web.loadUrl(ConstantValues.INSTAGRAM_OAUTH_URL);
                 web.setWebViewClient(new WebViewClient() {
                     boolean authComplete = false;
                     Intent resultIntent = new Intent();
@@ -131,13 +147,10 @@ public class MainActivity extends AppCompatActivity {
                         super.onPageStarted(view, url, favicon);
                     }
 
-                    String authCode;
-
                     @Override
                     public void onPageFinished(WebView view, String url) {
-                        super.onPageFinished(view, url);
-
-
+                        view.loadUrl("javascript:window.HtmlViewer.showHTML" +
+                                "('<html>'+document.getElementsByTagName('html')[0].innerHTML+'</html>');");
                     }
                 });
                 auth_dialog.show();
@@ -151,17 +164,29 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-                if (!sharedPreferences.getBoolean(ConstantValues.PREFERENCE_TWITTER_IS_LOGGED_IN,false))
-                {
+                if (!sharedPreferences.getBoolean(ConstantValues.PREFERENCE_TWITTER_IS_LOGGED_IN, false)) {
                     new TwitterAuthenticateTask().execute();
-                }
-                else
-                {
+                } else {
                     Intent intent = new Intent(MainActivity.this, TwitterActivity.class);
                     startActivity(intent);
                 }
             }
         });
+
+    }
+
+    class MyJavaScriptInterface {
+
+        private Context ctx;
+
+        MyJavaScriptInterface(Context ctx) {
+            this.ctx = ctx;
+        }
+
+        public void showHTML(String html) {
+            Log.i(TAG, "got html:" + html);
+            MainActivity.this.mTokenTextView.setText("" + SimpleJsonUtil.getTicket(html) );
+        }
 
     }
 
@@ -202,9 +227,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-
-
-    public void onResume(){
+    public void onResume() {
         super.onResume();
         AppEventsLogger.activateApp(this);
     }
@@ -223,5 +246,29 @@ public class MainActivity extends AppCompatActivity {
         callbackManager.onActivityResult(requestCode, resultCode, data);
     }
 
+    private void loginApi(String type, String token) {
+        // Instantiate the RequestQueue.
+        RequestQueue queue = Volley.newRequestQueue(this);
+        final String url = ConstantValues.API_URL + "/login?from=" + type + "&token=" + token;
 
+        // Request a string response from the provided URL.
+        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String response) {
+                        Log.i(TAG, "api :" + response);
+                        Toast.makeText(MainActivity.this, response, Toast.LENGTH_LONG).show();
+                        mTokenTextView.setText(SimpleJsonUtil.getTicket(response));
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                Log.i(TAG, "api error:" + error.getMessage());
+            }
+        });
+
+        // Add the request to the RequestQueue.
+        queue.add(stringRequest);
+        queue.start();
+    }
 }
