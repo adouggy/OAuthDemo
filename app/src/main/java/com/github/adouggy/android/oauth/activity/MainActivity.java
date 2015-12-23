@@ -3,12 +3,8 @@ package com.github.adouggy.android.oauth.activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.graphics.Bitmap;
-import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
@@ -23,6 +19,7 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.AuthFailureError;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
@@ -43,12 +40,11 @@ import com.github.adouggy.android.oauth.util.ConstantValues;
 import com.github.adouggy.android.oauth.util.OAuthType;
 import com.github.adouggy.android.oauth.util.PackageHashUtil;
 import com.github.adouggy.android.oauth.util.SimpleJsonUtil;
-import com.github.adouggy.android.oauth.util.TwitterUtil;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
-
-import twitter4j.auth.RequestToken;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -65,6 +61,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         FacebookSdk.sdkInitialize(getApplicationContext());
         Log.i(TAG, "package hash:" + PackageHashUtil.getHash(this));
+
+        setTitle("Boom Pre");
 
         callbackManager = CallbackManager.Factory.create();
         List<String> permissionNeeds = Arrays.asList("user_photos", "email", "user_birthday", "public_profile");
@@ -134,14 +132,10 @@ public class MainActivity extends AppCompatActivity {
                 auth_dialog.setContentView(R.layout.auth_dialog);
                 final WebView web = (WebView) auth_dialog.findViewById(R.id.webv);
                 web.getSettings().setJavaScriptEnabled(true);
-                web.addJavascriptInterface(new MyJavaScriptInterface(MainActivity.this), "HtmlViewer");
 
                 Log.i(TAG, "instagram oauthUrl:" + ConstantValues.INSTAGRAM_OAUTH_URL);
                 web.loadUrl(ConstantValues.INSTAGRAM_OAUTH_URL);
                 web.setWebViewClient(new WebViewClient() {
-                    boolean authComplete = false;
-                    Intent resultIntent = new Intent();
-
                     @Override
                     public void onPageStarted(WebView view, String url, Bitmap favicon) {
                         super.onPageStarted(view, url, favicon);
@@ -149,8 +143,6 @@ public class MainActivity extends AppCompatActivity {
 
                     @Override
                     public void onPageFinished(WebView view, String url) {
-                        view.loadUrl("javascript:window.HtmlViewer.showHTML" +
-                                "('<html>'+document.getElementsByTagName('html')[0].innerHTML+'</html>');");
                     }
                 });
                 auth_dialog.show();
@@ -159,19 +151,43 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        //https://dev.twitter.com/web/sign-in/implementing
         Button btnLoginTwitter = (Button) findViewById(R.id.btn_login_twitter);
         btnLoginTwitter.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-                if (!sharedPreferences.getBoolean(ConstantValues.PREFERENCE_TWITTER_IS_LOGGED_IN, false)) {
-                    new TwitterAuthenticateTask().execute();
-                } else {
-                    Intent intent = new Intent(MainActivity.this, TwitterActivity.class);
-                    startActivity(intent);
-                }
+                Dialog auth_dialog = new Dialog(MainActivity.this);
+                auth_dialog.setContentView(R.layout.auth_dialog);
+                final WebView web = (WebView) auth_dialog.findViewById(R.id.webv);
+                web.getSettings().setJavaScriptEnabled(true);
+
+                web.loadUrl(ConstantValues.API_URL + "/oauth/twitter");
+                web.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                        super.onPageStarted(view, url, favicon);
+                    }
+
+                    @Override
+                    public void onPageFinished(WebView view, String url) {
+                    }
+                });
+                auth_dialog.show();
+                auth_dialog.setTitle("登录Twitter");
+                auth_dialog.setCancelable(true);
             }
         });
+
+        Button btnLogout = (Button) findViewById(R.id.btn_logout);
+        btnLogout.setOnClickListener(new View.OnClickListener() {
+             @Override
+             public void onClick(View v) {
+                String p = mTokenTextView.getText().toString();
+                Toast.makeText(MainActivity.this, "logout with ticket:" + p, Toast.LENGTH_SHORT).show();
+                logout(p);
+             }
+         }
+        );
 
     }
 
@@ -185,23 +201,9 @@ public class MainActivity extends AppCompatActivity {
 
         public void showHTML(String html) {
             Log.i(TAG, "got html:" + html);
-            MainActivity.this.mTokenTextView.setText("" + SimpleJsonUtil.getTicket(html) );
+            MainActivity.this.mTokenTextView.setText("" + SimpleJsonUtil.getTicket(html));
         }
 
-    }
-
-    class TwitterAuthenticateTask extends AsyncTask<String, String, RequestToken> {
-
-        @Override
-        protected void onPostExecute(RequestToken requestToken) {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(requestToken.getAuthenticationURL()));
-            startActivity(intent);
-        }
-
-        @Override
-        protected RequestToken doInBackground(String... params) {
-            return TwitterUtil.getInstance().getRequestToken();
-        }
     }
 
     @Override
@@ -246,6 +248,12 @@ public class MainActivity extends AppCompatActivity {
         callbackManager.onActivityResult(requestCode, resultCode, data);
     }
 
+    /**
+     * boom api for /login
+     *
+     * @param type
+     * @param token
+     */
     private void loginApi(String type, String token) {
         // Instantiate the RequestQueue.
         RequestQueue queue = Volley.newRequestQueue(this);
@@ -271,4 +279,37 @@ public class MainActivity extends AppCompatActivity {
         queue.add(stringRequest);
         queue.start();
     }
+
+    private void logout(final String ticket){
+        // Instantiate the RequestQueue.
+        RequestQueue queue = Volley.newRequestQueue(this);
+        final String url = ConstantValues.API_URL + "/logout";
+
+        // Request a string response from the provided URL.
+        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String response) {
+                        Log.i(TAG, "api :" + response);
+                        Toast.makeText(MainActivity.this, response, Toast.LENGTH_LONG).show();
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                Log.i(TAG, "api error:" + error.getMessage());
+            }
+        }){
+            @Override
+            public Map<String, String> getHeaders() throws AuthFailureError {
+                HashMap<String, String> map = new HashMap<>();
+                map.put("p", ticket);
+                return map;
+            }
+        };
+
+        // Add the request to the RequestQueue.
+        queue.add(stringRequest);
+        queue.start();
+    }
+
 }
