@@ -5,16 +5,31 @@ android {
     buildToolsVersion "22.0.1"
 
     defaultConfig {
-        applicationId "com.github.adouggy.android.oauth"
+        applicationId "com.weeeye.desafinado"
         minSdkVersion 22
         targetSdkVersion 23
         versionCode 1
         versionName "1.0"
     }
+    signingConfigs {
+        release {
+            keyAlias "miyan"
+            keyPassword "maiquan890"
+            storeFile file("/Users/liyazi/Desktop/miyan.keystore")
+            storePassword "maiquan890"
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+        debug {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+            signingConfig signingConfigs.release
         }
     }
 
@@ -36,4 +51,7 @@ dependencies {
     compile 'com.mcxiaoke.volley:library:1.0.19'
     compile 'com.alibaba:fastjson:1.2.7'
     compile 'com.google.guava:guava:19.0'
+    compile files('/Users/liyazi/AndroidStudioProjects/OAuthTest/libs/libammsdk.jar')
+    compile files('/Users/liyazi/AndroidStudioProjects/OAuthTest/libs/weiboSDKCore_3.1.4.jar')
+    compile files('/Users/liyazi/AndroidStudioProjects/OAuthTest/libs/open_sdk_r5509_lite.jar')
 }

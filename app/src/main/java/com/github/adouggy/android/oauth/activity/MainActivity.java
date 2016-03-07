@@ -35,26 +35,107 @@ import com.facebook.appevents.AppEventsLogger;
 import com.facebook.login.LoginManager;
 import com.facebook.login.LoginResult;
 import com.facebook.login.widget.LoginButton;
-import com.github.adouggy.android.oauth.R;
 import com.github.adouggy.android.oauth.util.ConstantValues;
 import com.github.adouggy.android.oauth.util.OAuthType;
 import com.github.adouggy.android.oauth.util.PackageHashUtil;
 import com.github.adouggy.android.oauth.util.SimpleJsonUtil;
+import com.sina.weibo.sdk.auth.AuthInfo;
+import com.sina.weibo.sdk.auth.Oauth2AccessToken;
+import com.sina.weibo.sdk.auth.WeiboAuthListener;
+import com.sina.weibo.sdk.auth.sso.SsoHandler;
+import com.sina.weibo.sdk.exception.WeiboException;
+import com.tencent.mm.sdk.modelmsg.SendAuth;
+import com.tencent.mm.sdk.openapi.IWXAPI;
+import com.tencent.mm.sdk.openapi.WXAPIFactory;
+import com.tencent.tauth.IUiListener;
+import com.tencent.tauth.Tencent;
+import com.tencent.tauth.UiError;
+import com.weeeye.desafinado.R;
+
+import org.json.JSONObject;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MainActivity extends AppCompatActivity {
 
-    private final static String TAG = "MainActivity";
+public class MainActivity extends AppCompatActivity implements WeiboAuthListener {
+
+    public final static String TAG = "MainActivity";
 
     private CallbackManager callbackManager;
 
-    public static String CALLBACK_URL = "myapp://twitter";
-
     public static TextView mTokenTextView = null;
+
+    final String appId = "wxb3c2e9592e1086d7";
+
+    // IWXAPI 是第三方app和微信通信的openapi接口
+    public static IWXAPI api;
+
+
+    private void loginWithWeixin() {
+        if( api == null ) {
+            api = WXAPIFactory.createWXAPI(this, appId, false);
+            boolean regWechat = api.registerApp(appId);
+            Log.i(TAG, "注册微信:" + regWechat);
+        }
+
+        if (!api.isWXAppInstalled()) {
+            Log.i(TAG, "您还未安装微信客户端");
+            return;
+        }
+
+        final SendAuth.Req req = new SendAuth.Req();
+        req.scope = "snsapi_userinfo";
+        req.state = "diandi_wx_login";
+        boolean res = api.sendReq(req);
+        Log.i(TAG, "send:" + res);
+    }
+
+    SsoHandler mSsoHandler = null;
+    private void loginWithWeibo() {
+        final String APP_KEY      = "1847700491";		   // 应用的APP_KEY
+        final String REDIRECT_URL = "https://api.weibo.com/oauth2/default.html";// 应用的回调页
+        final String SCOPE = 							   // 应用申请的高级权限
+                "email,direct_messages_read,direct_messages_write,"
+                        + "friendships_groups_read,friendships_groups_write,statuses_to_me_read,"
+                        + "follow_app_official_microblog," + "invitation_write";
+
+        AuthInfo authInfo = new AuthInfo(this, APP_KEY, REDIRECT_URL, SCOPE);
+        if( mSsoHandler == null )
+            mSsoHandler = new SsoHandler(this, authInfo);
+        mSsoHandler.authorize(this);
+    }
+
+    Tencent mTencent = null;
+    private void loginWithQQ() {
+        final String APP_KEY      = "1105117093";		   // 应用的APP_KEY
+        if( mTencent == null )
+            mTencent = Tencent.createInstance(APP_KEY, this.getApplicationContext());
+        if (!mTencent.isSessionValid())
+        {
+            mTencent.login(this, "", new IUiListener() {
+                @Override
+                public void onComplete(Object o) {
+                    JSONObject j = (JSONObject) o;
+                    Log.i(TAG, j.toString());
+                }
+
+                @Override
+                public void onError(UiError uiError) {
+                    Log.i(TAG, "error");
+                }
+
+                @Override
+                public void onCancel() {
+                    Log.i(TAG, "cancel");
+                }
+            });
+        }
+
+        //Log.i(TAG, "send:" + res);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -133,8 +214,9 @@ public class MainActivity extends AppCompatActivity {
                 final WebView web = (WebView) auth_dialog.findViewById(R.id.webv);
                 web.getSettings().setJavaScriptEnabled(true);
 
-                Log.i(TAG, "instagram oauthUrl:" + ConstantValues.INSTAGRAM_OAUTH_URL);
-                web.loadUrl(ConstantValues.INSTAGRAM_OAUTH_URL);
+//                Log.i(TAG, "instagram oauthUrl:" + ConstantValues.INSTAGRAM_OAUTH_URL);
+//                web.loadUrl(ConstantValues.INSTAGRAM_OAUTH_URL);
+                web.loadUrl(ConstantValues.API_URL + "/oauth/instagram");
                 web.setWebViewClient(new WebViewClient() {
                     @Override
                     public void onPageStarted(WebView view, String url, Bitmap favicon) {
@@ -178,6 +260,36 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        //for wechat
+        Button btnLoginWechat = (Button) findViewById(R.id.btn_login_wechat);
+        btnLoginWechat.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v){
+                Log.i(TAG, "准备登陆微信");
+                loginWithWeixin();
+            }
+        });
+
+        //for weibo
+        Button btnLoginWeibo = (Button) findViewById(R.id.btn_login_weibo);
+        btnLoginWeibo.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v){
+                Log.i(TAG, "准备登陆微博");
+                loginWithWeibo();
+            }
+        });
+
+        //for weibo
+        Button btnLoginQQ = (Button) findViewById(R.id.btn_login_qq);
+        btnLoginQQ.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v){
+                Log.i(TAG, "准备登陆QQ");
+                loginWithQQ();
+            }
+        });
+
         Button btnLogout = (Button) findViewById(R.id.btn_logout);
         btnLogout.setOnClickListener(new View.OnClickListener() {
              @Override
@@ -188,21 +300,6 @@ public class MainActivity extends AppCompatActivity {
              }
          }
         );
-
-    }
-
-    class MyJavaScriptInterface {
-
-        private Context ctx;
-
-        MyJavaScriptInterface(Context ctx) {
-            this.ctx = ctx;
-        }
-
-        public void showHTML(String html) {
-            Log.i(TAG, "got html:" + html);
-            MainActivity.this.mTokenTextView.setText("" + SimpleJsonUtil.getTicket(html));
-        }
 
     }
 
@@ -217,7 +314,6 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         // Handle action bar item clicks here. The action bar will
         // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
 
         //noinspection SimplifiableIfStatement
@@ -246,6 +342,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         callbackManager.onActivityResult(requestCode, resultCode, data);
+
+        if (mSsoHandler != null) {
+            mSsoHandler.authorizeCallBack(requestCode, resultCode, data);
+        }
     }
 
     /**
@@ -283,10 +383,12 @@ public class MainActivity extends AppCompatActivity {
     private void logout(final String ticket){
         // Instantiate the RequestQueue.
         RequestQueue queue = Volley.newRequestQueue(this);
-        final String url = ConstantValues.API_URL + "/logout";
+//        final String url = ConstantValues.API_URL + "/logout";
+        final String url = ConstantValues.API_URL + "/login";
 
         // Request a string response from the provided URL.
-        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+//        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+        StringRequest stringRequest = new StringRequest(Request.Method.DELETE, url,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
@@ -311,5 +413,26 @@ public class MainActivity extends AppCompatActivity {
         queue.add(stringRequest);
         queue.start();
     }
+
+
+        @Override
+        public void onComplete(Bundle bundle) {
+            Oauth2AccessToken mAccessToken = Oauth2AccessToken.parseAccessToken(bundle); // 从 Bundle 中解析 Token
+            if (mAccessToken.isSessionValid()) {
+                Log.i(TAG, "微博token:" + mAccessToken.getToken());
+            } else {
+                Log.i(TAG, "微博token错误");
+            }
+        }
+
+        @Override
+        public void onWeiboException(WeiboException e) {
+            Log.i(TAG, "微博EXCEPTION:" + e.getMessage());
+        }
+
+        @Override
+        public void onCancel() {
+            Log.i(TAG, "微博cancel");
+        }
 
 }
