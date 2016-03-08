@@ -18,7 +18,7 @@ public class PackageHashUtil {
         StringBuilder sb = new StringBuilder();
         try {
             //paste Your package name at the first parameter
-            PackageInfo info = context.getPackageManager().getPackageInfo("com.github.adouggy.android.oauth",
+            PackageInfo info = context.getPackageManager().getPackageInfo("com.weeeye.desafinado",
                     PackageManager.GET_SIGNATURES);
             for (android.content.pm.Signature signature : info.signatures) {
                 MessageDigest md = MessageDigest.getInstance("SHA");

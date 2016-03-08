@@ -19,6 +19,7 @@
         <meta-data
             android:name="com.facebook.sdk.ApplicationId"
             android:value="@string/fb_app_id" />
+
         <activity
             android:name="com.tencent.tauth.AuthActivity"
             android:noHistory="true"
@@ -27,9 +28,10 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="1105117093" />
+                <data android:scheme="tencent1105117093" />
             </intent-filter>
         </activity>
+
         <activity android:name="com.tencent.connect.common.AssistActivity"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:configChanges="orientation|keyboardHidden|screenSize"

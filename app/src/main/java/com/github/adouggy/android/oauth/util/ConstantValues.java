@@ -8,7 +8,7 @@ package com.github.adouggy.android.oauth.util;
  * To change this template use File | Settings | File Templates.
  */
 public class ConstantValues {
-        public static final String API_URL = "http://api.badsinger.weeeye.cn";
+        public static final String API_URL = "http://api.badsinger.weeeye.com";
 //    public static final String API_URL = "http://api.boom.weeeye.com";
 //
 

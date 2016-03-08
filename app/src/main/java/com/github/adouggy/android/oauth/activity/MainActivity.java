@@ -44,6 +44,7 @@ import com.sina.weibo.sdk.auth.Oauth2AccessToken;
 import com.sina.weibo.sdk.auth.WeiboAuthListener;
 import com.sina.weibo.sdk.auth.sso.SsoHandler;
 import com.sina.weibo.sdk.exception.WeiboException;
+import com.tencent.connect.common.Constants;
 import com.tencent.mm.sdk.modelmsg.SendAuth;
 import com.tencent.mm.sdk.openapi.IWXAPI;
 import com.tencent.mm.sdk.openapi.WXAPIFactory;
@@ -109,29 +110,31 @@ public class MainActivity extends AppCompatActivity implements WeiboAuthListener
     }
 
     Tencent mTencent = null;
+    private IUiListener qqCallback =  new IUiListener() {
+        @Override
+        public void onComplete(Object o) {
+            Log.i(TAG, "complete");
+            Log.i(TAG, o.toString());
+        }
+
+        @Override
+        public void onError(UiError uiError) {
+            Log.i(TAG, "error");
+        }
+
+        @Override
+        public void onCancel() {
+            Log.i(TAG, "cancel");
+        }
+    };
+
     private void loginWithQQ() {
-        final String APP_KEY      = "1105117093";		   // 应用的APP_KEY
-        if( mTencent == null )
-            mTencent = Tencent.createInstance(APP_KEY, this.getApplicationContext());
         if (!mTencent.isSessionValid())
         {
-            mTencent.login(this, "", new IUiListener() {
-                @Override
-                public void onComplete(Object o) {
-                    JSONObject j = (JSONObject) o;
-                    Log.i(TAG, j.toString());
-                }
+            mTencent.login(this, "get_simple_userinfo", qqCallback);
 
-                @Override
-                public void onError(UiError uiError) {
-                    Log.i(TAG, "error");
-                }
-
-                @Override
-                public void onCancel() {
-                    Log.i(TAG, "cancel");
-                }
-            });
+        }else{
+            Log.i(TAG, "not valid session");
         }
 
         //Log.i(TAG, "send:" + res);
@@ -280,6 +283,8 @@ public class MainActivity extends AppCompatActivity implements WeiboAuthListener
             }
         });
 
+        final String APP_KEY      = "1105117093";		   // 应用的APP_KEY
+        mTencent = Tencent.createInstance(APP_KEY, this.getApplicationContext());
         //for weibo
         Button btnLoginQQ = (Button) findViewById(R.id.btn_login_qq);
         btnLoginQQ.setOnClickListener(new View.OnClickListener(){
@@ -340,12 +345,20 @@ public class MainActivity extends AppCompatActivity implements WeiboAuthListener
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
+
         callbackManager.onActivityResult(requestCode, resultCode, data);
 
         if (mSsoHandler != null) {
             mSsoHandler.authorizeCallBack(requestCode, resultCode, data);
         }
+
+
+       // mTencent.onActivityResult(requestCode, resultCode, data);
+
+        Log.i(TAG, "onActivityResult");
+        mTencent.onActivityResultData(requestCode, resultCode, data, qqCallback);
+        super.onActivityResult(requestCode, resultCode, data);
+
     }
 
     /**
